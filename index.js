@@ -1,25 +1,31 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const dotenv = require("dotenv")
+const dotenv = require("dotenv");
 const app = express();
-const port = 8093;
 
 dotenv.config();
 
-app.use(cors());
+const corsOptions = {
+    origin: "*",  // 모든 출처를 허용, 필요에 따라 특정 도메인만 허용할 수도 있음
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  // 허용할 HTTP 메소드 설정
+    allowedHeaders: ["Content-Type", "Authorization"],  // 허용할 헤더 설정
+    optionsSuccessStatus: 204  // OPTIONS 요청에 대한 응답 상태 코드 (204: No Content)
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
-const db_password = process.env.DB_PASSWORD
-
-mongoose.connect(`mongodb+srv://parkjuwon8093:${db_password}@worktogether.d531a.mongodb.net/?retryWrites=true&w=majority&appName=WorkTogether`)
+mongoose.connect(`mongodb+srv://parkjuwon8093:kSPAfa7NlpM0VvlK@worktogether.d531a.mongodb.net/?retryWrites=true&w=majority&appName=WorkTogether`)
 .then(() => console.log("MongoDB connected"))
 .catch((err) => console.error("MongoDB connection error:", err));
 
 const postSchema = new mongoose.Schema({
     title: String,
     body: String,
-    createdAt: { type: Date, default: Date.now }
+    like: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now } // 언제 만들어졌는지
 });
 
 const Post = mongoose.model("Post", postSchema);
@@ -35,20 +41,27 @@ app.get("/posts", async (req, res) => { // 게시글 돌라는 요청이 들어�
 });
 
 app.post("/posts", async (req, res) => {
-    const { title, body } = req.body;
+    const { _id, title, body, like } = req.body;
     try {
-        const newPost = new Post({ title, body }); // 새로운 게시글 생성
-        const savedPost = await newPost.save(); // MongoDB에 저장
-        res.status(201).json(savedPost);
+        let post;
+        if (_id) {
+            // 기존 게시글이면 업데이트 (좋아요 증가)
+            post = await Post.findByIdAndUpdate(_id, { title, body, like }, { new: true });
+        } else {
+            // 새로운 게시글 추가
+            post = new Post({ title, body, like: like || 0 });
+            await post.save();
+        }
+
+        res.status(200).json(post);
     } catch (err) {
         console.error("Error saving post:", err);
         res.status(500).json({ error: "Failed to save post" });
     }
 });
 
-// 서버 실행
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
-
+// app.listen(port, () => {
+//     console.log("listening!");
+// })
+// Vercel은 app.listen 안씀(서버리스라서)
 module.exports = app;
